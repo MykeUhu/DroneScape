@@ -3,9 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Camera/CameraComponent.h"
 #include "GameFramework/Character.h"
-#include "GameFramework/SpringArmComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "UhuCharacterBase.generated.h"
 
 UCLASS()
@@ -17,12 +16,8 @@ public:
 	AUhuCharacterBase();
 
 protected:
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+	virtual void BeginPlay() override;
 
-private:
-	UPROPERTY(VisibleAnywhere)
-	USpringArmComponent* SpringArm;
-
-	UPROPERTY(VisibleAnywhere)
-	UCameraComponent* Camera;
+public:
+	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 };

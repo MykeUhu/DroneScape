@@ -1,6 +1,5 @@
 // Copyright by MykeUhu
 
-
 #include "Controller/UhuPlayerControllerBase.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
@@ -11,13 +10,21 @@
 #include "Kismet/GameplayStatics.h"
 #include "Blueprint/UserWidget.h"
 
+// Define custom log category for better filtering
+DEFINE_LOG_CATEGORY_STATIC(LogUhuController, Log, All);
+
+AUhuPlayerControllerBase::AUhuPlayerControllerBase()
+{
+    bIsControllingDrone = false; // Start with character control
+}
+
 void AUhuPlayerControllerBase::SetupInputComponent()
 {
     Super::SetupInputComponent();
-    
-    UE_LOG(LogTemp, Warning, TEXT("SetupInputComponent aufgerufen"));
 
-    // Binde die Eingabeaktionen
+    UE_LOG(LogUhuController, Log, TEXT("SetupInputComponent called"));
+
+    // Bind input actions only if EnhancedInputComponent is valid
     if (UEnhancedInputComponent* EnhancedInputComponent = CastChecked<UEnhancedInputComponent>(InputComponent))
     {
         EnhancedInputComponent->BindAction(Ia_MoveForward, ETriggerEvent::Triggered, this, &AUhuPlayerControllerBase::MoveForward);
@@ -27,29 +34,37 @@ void AUhuPlayerControllerBase::SetupInputComponent()
         EnhancedInputComponent->BindAction(Ia_ToggleUIAndCamera, ETriggerEvent::Started, this, &AUhuPlayerControllerBase::ToggleUIAndCamera);
     }
 
-    // Input Mapping Context hinzufügen
+    // Adding the Input Mapping Context
     if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
     {
         Subsystem->AddMappingContext(InputMappingContext, 0);
-        UE_LOG(LogTemp, Warning, TEXT("Input Mapping Context hinzugefügt"));
+        UE_LOG(LogUhuController, Log, TEXT("Input Mapping Context added"));
     }
 
-    // Initialisiere die Charaktere
+    // Initialize the Player and Drone characters safely
     PlayerCharacter = Cast<APawn>(UGameplayStatics::GetActorOfClass(GetWorld(), AUhuCharacter::StaticClass()));
     DroneCharacter = Cast<APawn>(UGameplayStatics::GetActorOfClass(GetWorld(), AUhuDrone::StaticClass()));
     CurrentCharacter = PlayerCharacter;
 
-    // Besitze den ersten Charakter
-    Possess(CurrentCharacter);
+    // Possess the player character initially
+    if (CurrentCharacter.IsValid())
+    {
+        Possess(CurrentCharacter.Get());
+        UE_LOG(LogUhuController, Log, TEXT("Possessed initial character: %s"), *CurrentCharacter->GetName());
+    }
+    else
+    {
+        UE_LOG(LogUhuController, Warning, TEXT("CurrentCharacter is invalid, cannot possess."));
+    }
 
-    // Initialisiere die UI-Widgets
+    // Initialize the UI Widgets
     if (PlayerUIClass)
     {
         PlayerUIWidget = CreateWidget<UUserWidget>(this, PlayerUIClass);
         if (PlayerUIWidget)
         {
             PlayerUIWidget->AddToViewport();
-            UE_LOG(LogTemp, Warning, TEXT("Player UI hinzugefügt"));
+            UE_LOG(LogUhuController, Log, TEXT("Player UI added"));
         }
     }
 
@@ -63,158 +78,154 @@ void AUhuPlayerControllerBase::SetupInputComponent()
 
 void AUhuPlayerControllerBase::ToggleUIAndCamera()
 {
-    UE_LOG(LogTemp, Warning, TEXT("ToggleUIAndCamera aufgerufen"));
+    UE_LOG(LogUhuController, Log, TEXT("ToggleUIAndCamera called"));
 
+    // Check if switching back to Player character
     if (bIsDroneUIActive)
     {
-        // Wechsel zurück zum Spieler
-        if (PlayerUIWidget)
-        {
-            PlayerUIWidget->AddToViewport();
-            UE_LOG(LogTemp, Warning, TEXT("Player UI hinzugefügt"));
-        }
-        if (DroneUIWidget)
-        {
-            DroneUIWidget->RemoveFromParent();
-            UE_LOG(LogTemp, Warning, TEXT("Drone UI entfernt"));
-        }
-        Possess(PlayerCharacter);
-        CurrentCharacter = PlayerCharacter;  // Hier sicherstellen, dass CurrentCharacter gesetzt wird
-        UE_LOG(LogTemp, Warning, TEXT("Besitze PlayerCharacter"));
-
-        // Überprüfe die Besitznahme
-        if (GetPawn() == PlayerCharacter)
-        {
-            UE_LOG(LogTemp, Warning, TEXT("Besitznahme von PlayerCharacter erfolgreich"));
-        }
-        else
-        {
-            UE_LOG(LogTemp, Warning, TEXT("Besitznahme von PlayerCharacter fehlgeschlagen"));
-        }
-
-        // Aktiviere die Spieler-Kamera
-        APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
-        if (PC && PlayerCharacter)
-        {
-            PC->SetViewTargetWithBlend(PlayerCharacter, 0.5f);
-            UE_LOG(LogTemp, Warning, TEXT("Spieler-Kamera aktiviert"));
-        }
+        SwitchToCharacter(PlayerCharacter.Get(), PlayerUIWidget, DroneUIWidget, TEXT("PlayerCharacter"));
     }
     else
     {
-        // Wechsel zur Drohne
-        if (DroneUIWidget)
-        {
-            DroneUIWidget->AddToViewport();
-            UE_LOG(LogTemp, Warning, TEXT("Drone UI hinzugefügt"));
-        }
-        if (PlayerUIWidget)
-        {
-            PlayerUIWidget->RemoveFromParent();
-            UE_LOG(LogTemp, Warning, TEXT("Player UI entfernt"));
-        }
-        Possess(DroneCharacter);
-        CurrentCharacter = DroneCharacter;  // Hier sicherstellen, dass CurrentCharacter gesetzt wird
-        UE_LOG(LogTemp, Warning, TEXT("Besitze DroneCharacter"));
-
-        // Überprüfe die Besitznahme
-        if (GetPawn() == DroneCharacter)
-        {
-            UE_LOG(LogTemp, Warning, TEXT("Besitznahme von DroneCharacter erfolgreich"));
-        }
-        else
-        {
-            UE_LOG(LogTemp, Warning, TEXT("Besitznahme von DroneCharacter fehlgeschlagen"));
-        }
-
-        // Aktiviere die Drohnen-Kamera
-        APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
-        if (PC && DroneCharacter)
-        {
-            PC->SetViewTargetWithBlend(DroneCharacter, 0.5f);
-            UE_LOG(LogTemp, Warning, TEXT("Drohnen-Kamera aktiviert"));
-        }
+        SwitchToCharacter(DroneCharacter.Get(), DroneUIWidget, PlayerUIWidget, TEXT("DroneCharacter"));
     }
 
     bIsDroneUIActive = !bIsDroneUIActive;
-    UE_LOG(LogTemp, Warning, TEXT("bIsDroneUIActive: %s"), bIsDroneUIActive ? TEXT("true") : TEXT("false"));
+    UE_LOG(LogUhuController, Log, TEXT("bIsDroneUIActive: %s"), bIsDroneUIActive ? TEXT("true") : TEXT("false"));
 }
 
+// Helper function to switch between characters and handle UI changes
+void AUhuPlayerControllerBase::SwitchToCharacter(APawn* NewCharacter, UUserWidget* NewWidget, UUserWidget* OldWidget, const FString& CharacterName)
+{
+    if (NewCharacter)
+    {
+        // Possess the new character
+        Possess(NewCharacter);
+
+        // Deactivate the old UI
+        if (OldWidget)
+        {
+            OldWidget->RemoveFromParent();  // Updated from RemoveFromViewport to RemoveFromParent
+        }
+
+        // Show the new UI
+        if (NewWidget)
+        {
+            NewWidget->AddToViewport();
+        }
+
+        UE_LOG(LogUhuController, Log, TEXT("Switched to %s"), *CharacterName);
+    }
+    else
+    {
+        UE_LOG(LogUhuController, Warning, TEXT("NewCharacter is null!"));
+    }
+}
+
+// Movement functions
 void AUhuPlayerControllerBase::MoveForward(const FInputActionValue& InputActionValue)
 {
-    float Value = InputActionValue.Get<float>();
-    if (CurrentCharacter && Value != 0.0f)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("MoveForward for %s"), *CurrentCharacter->GetName());
-
-        const FRotator Rotation = CurrentCharacter->GetControlRotation();
-        const FRotator YawRotation(0, Rotation.Yaw, 0);
-        const FVector Direction = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-        CurrentCharacter->AddMovementInput(Direction, Value);
-        UE_LOG(LogTemp, Warning, TEXT("Bewegung hinzugefügt für: %s"), *CurrentCharacter->GetName());
-    }
+    HandleMovement(InputActionValue, EAxis::X, TEXT("MoveForward"));
 }
 
 void AUhuPlayerControllerBase::MoveRight(const FInputActionValue& InputActionValue)
 {
-    float Value = InputActionValue.Get<float>();
-    if (CurrentCharacter && Value != 0.0f)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("MoveRight for %s"), *CurrentCharacter->GetName());
-
-        const FRotator Rotation = CurrentCharacter->GetControlRotation();
-        const FRotator YawRotation(0, Rotation.Yaw, 0);
-        const FVector Direction = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-        CurrentCharacter->AddMovementInput(Direction, Value);
-        UE_LOG(LogTemp, Warning, TEXT("Bewegung hinzugefügt für: %s"), *CurrentCharacter->GetName());
-    }
+    HandleMovement(InputActionValue, EAxis::Y, TEXT("MoveRight"));
 }
 
 void AUhuPlayerControllerBase::MoveUp(const FInputActionValue& InputActionValue)
 {
     float Value = InputActionValue.Get<float>();
-    if (DroneCharacter && Value != 0.0f)
+    if (DroneCharacter.IsValid() && Value != 0.0f)
     {
-        UE_LOG(LogTemp, Warning, TEXT("MoveUp for %s"), *DroneCharacter->GetName());
+        // Add vertical movement based on Up/Down input
+        const FVector UpDirection = FVector::UpVector;
+        DroneCharacter->AddMovementInput(UpDirection, Value);
+        UE_LOG(LogUhuController, Log, TEXT("MoveUp for %s"), *DroneCharacter->GetName());
+    }
+}
 
-        const FVector Direction = FVector::UpVector;
-        DroneCharacter->AddMovementInput(Direction, Value);
-        UE_LOG(LogTemp, Warning, TEXT("Bewegung hinzugefügt für: %s"), *DroneCharacter->GetName());
+void AUhuPlayerControllerBase::HandleMovement(const FInputActionValue& InputActionValue, EAxis::Type Axis, const FString& ActionName)
+{
+    // Ensure we have a valid pawn to control
+    APawn* ControlledPawn = GetPawn();
+    if (!ControlledPawn) return; // Exit if no pawn is controlled
+
+    FVector Direction;
+
+    // Determine the direction based on the axis
+    switch (Axis)
+    {
+    case EAxis::X: // Forward / Backward
+        Direction = ControlledPawn->GetActorForwardVector();
+        break;
+    case EAxis::Y: // Right / Left
+        Direction = ControlledPawn->GetActorRightVector();
+        break;
+    case EAxis::Z: // Up / Down
+        Direction = FVector::UpVector; // Up direction for Z-axis input
+        break;
+    default:
+        UE_LOG(LogUhuController, Warning, TEXT("Unhandled axis type: %s"), *ActionName);
+        return; // Early return if the axis is not handled
+    }
+
+    // Execute the movement
+    const float Value = InputActionValue.Get<float>();
+    if (Value != 0.0f)
+    {
+        // Calculate new movement and execute it
+        const FVector Movement = Direction * Value;
+        ControlledPawn->AddMovementInput(Movement);
+        UE_LOG(LogUhuController, Log, TEXT("Move %s for %s"), *ActionName, *ControlledPawn->GetName());
     }
 }
 
 void AUhuPlayerControllerBase::Jump()
 {
-    if (PlayerCharacter)
+    if (PlayerCharacter.IsValid())
     {
-        if (AUhuCharacterBase* LocalCharacter = Cast<AUhuCharacterBase>(PlayerCharacter))
+        if (AUhuCharacter* LocalCharacter = Cast<AUhuCharacter>(PlayerCharacter.Get()))
         {
             LocalCharacter->Jump();
-            UE_LOG(LogTemp, Warning, TEXT("Jump executed for: %s"), *LocalCharacter->GetName());
+            UE_LOG(LogUhuController, Log, TEXT("Jump executed for: %s"), *LocalCharacter->GetName());
         }
+        else
+        {
+            UE_LOG(LogUhuController, Warning, TEXT("Failed to cast PlayerCharacter to AUhuCharacter."));
+        }
+    }
+    else
+    {
+        UE_LOG(LogUhuController, Warning, TEXT("PlayerCharacter is invalid, cannot jump."));
     }
 }
 
 void AUhuPlayerControllerBase::SwitchCharacter()
 {
-    UE_LOG(LogTemp, Warning, TEXT("SwitchCharacter aufgerufen"));
+    APawn* NewCharacter = bIsControllingDrone ? PlayerCharacter.Get() : DroneCharacter.Get();
+    UUserWidget* NewWidget = bIsControllingDrone ? PlayerUIWidget : DroneUIWidget;
+    UUserWidget* OldWidget = bIsControllingDrone ? DroneUIWidget : PlayerUIWidget;
+    const FString CharacterName = bIsControllingDrone ? "Player" : "Drone";
 
-    if (CurrentCharacter == PlayerCharacter)
+    SwitchToCharacter(NewCharacter, NewWidget, OldWidget, CharacterName);
+}
+
+
+void AUhuPlayerControllerBase::SwitchControl()
+{
+    // Wechsel zwischen Charakter und Drohne
+    bIsControllingDrone = !bIsControllingDrone;
+
+    if (bIsControllingDrone)
     {
-        CurrentCharacter = DroneCharacter;
+        // Aktiviere die Drohne und deaktiviere den Charakter
+        SwitchToCharacter(DroneCharacter.Get(), DroneUIWidget, PlayerUIWidget, "Drone");
     }
     else
     {
-        CurrentCharacter = PlayerCharacter;
-    }
-
-    Possess(CurrentCharacter);
-    if (GetPawn() == CurrentCharacter)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Possess erfolgreich"));
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Possess fehlgeschlagen"));
+        // Aktiviere den Charakter und deaktiviere die Drohne
+        SwitchToCharacter(PlayerCharacter.Get(), PlayerUIWidget, DroneUIWidget, "Player");
     }
 }
+
