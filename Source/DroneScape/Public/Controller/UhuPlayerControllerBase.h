@@ -22,13 +22,16 @@ public:
     AUhuPlayerControllerBase();
 
     // Call this function to switch control between character and drone
-    UFUNCTION(BlueprintCallable, Category = "Control")
+    UFUNCTION(BlueprintCallable, Category="Control")
     void SwitchControl();
     
     // Setup input component to bind actions
     virtual void SetupInputComponent() override;
 
 protected:
+    // BeginPlay-Methode für Initialisierungen
+    virtual void BeginPlay() override;
+    
     // Input actions
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
     UInputMappingContext* InputMappingContext;
@@ -61,8 +64,8 @@ protected:
     TWeakObjectPtr<APawn> CurrentCharacter;
 
     // UI widgets
-    UUserWidget* PlayerUIWidget;
-    UUserWidget* DroneUIWidget;
+    TWeakObjectPtr<UUserWidget> PlayerUIWidget;
+    TWeakObjectPtr<UUserWidget> DroneUIWidget;
 
     // State
     bool bIsDroneUIActive;
@@ -83,7 +86,9 @@ protected:
     void SwitchToCharacter(APawn* NewCharacter, UUserWidget* NewWidget, UUserWidget* OldWidget, const FString& CharacterName);
     void HandleMovement(const FInputActionValue& InputActionValue, EAxis::Type Axis, const FString& ActionName);
 
+
 private:
     UPROPERTY(BlueprintReadOnly, Category = "Control", meta = (AllowPrivateAccess = "true"))
     bool bIsControllingDrone; // true if controlling the drone, false if controlling the character
+    
 };

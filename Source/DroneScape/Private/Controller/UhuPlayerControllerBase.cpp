@@ -13,9 +13,32 @@
 // Define custom log category for better filtering
 DEFINE_LOG_CATEGORY_STATIC(LogUhuController, Log, All);
 
-AUhuPlayerControllerBase::AUhuPlayerControllerBase()
+
+void AUhuPlayerControllerBase::BeginPlay()
 {
+    Super::BeginPlay();
+
     bIsControllingDrone = false; // Start with character control
+}
+
+AUhuPlayerControllerBase::AUhuPlayerControllerBase()
+    : InputMappingContext(nullptr)      // Input Mapping Context für die Eingaben
+    , Ia_MoveForward(nullptr)           // Input Action für Vorwärtsbewegung
+    , Ia_MoveRight(nullptr)             // Input Action für Rechtsbewegung
+    , Ia_MoveUp(nullptr)                // Input Action für Aufwärtsbewegung
+    , Ia_Jump(nullptr)                  // Input Action für Springen
+    , Ia_ToggleUIAndCamera(nullptr)     // Input Action zum Wechseln zwischen UI und Kamera
+    , PlayerUIWidget(nullptr)           // Widget für die Spieler-UI
+    , DroneUIWidget(nullptr)            // Widget für die Drohnen-UI
+    , bIsDroneUIActive(false)           // Status, ob die Drohnen-UI aktiv ist
+{
+    // Weitere Initialisierungen können hier durchgeführt werden, falls nötig
+}
+
+void AUhuPlayerControllerBase::SwitchControl()
+{
+    UE_LOG(LogUhuController, Log, TEXT("SwitchControl called"));
+    // Implementiere hier deine Logik zum Wechseln der Steuerung
 }
 
 void AUhuPlayerControllerBase::SetupInputComponent()
@@ -61,7 +84,7 @@ void AUhuPlayerControllerBase::SetupInputComponent()
     if (PlayerUIClass)
     {
         PlayerUIWidget = CreateWidget<UUserWidget>(this, PlayerUIClass);
-        if (PlayerUIWidget)
+        if (PlayerUIWidget.IsValid())  // .IsValid() verwenden, um sicherzustellen, dass der Weak Pointer gültig ist
         {
             PlayerUIWidget->AddToViewport();
             UE_LOG(LogUhuController, Log, TEXT("Player UI added"));
@@ -76,6 +99,7 @@ void AUhuPlayerControllerBase::SetupInputComponent()
     bIsDroneUIActive = false;
 }
 
+
 void AUhuPlayerControllerBase::ToggleUIAndCamera()
 {
     UE_LOG(LogUhuController, Log, TEXT("ToggleUIAndCamera called"));
@@ -83,11 +107,11 @@ void AUhuPlayerControllerBase::ToggleUIAndCamera()
     // Check if switching back to Player character
     if (bIsDroneUIActive)
     {
-        SwitchToCharacter(PlayerCharacter.Get(), PlayerUIWidget, DroneUIWidget, TEXT("PlayerCharacter"));
+        SwitchToCharacter(PlayerCharacter.Get(), PlayerUIWidget.Get(), DroneUIWidget.Get(), TEXT("PlayerCharacter"));
     }
     else
     {
-        SwitchToCharacter(DroneCharacter.Get(), DroneUIWidget, PlayerUIWidget, TEXT("DroneCharacter"));
+        SwitchToCharacter(DroneCharacter.Get(), DroneUIWidget.Get(), PlayerUIWidget.Get(), TEXT("DroneCharacter"));
     }
 
     bIsDroneUIActive = !bIsDroneUIActive;
@@ -103,7 +127,7 @@ void AUhuPlayerControllerBase::SwitchToCharacter(APawn* NewCharacter, UUserWidge
         Possess(NewCharacter);
 
         // Deactivate the old UI
-        if (OldWidget)
+        if (OldWidget && OldWidget->IsInViewport())
         {
             OldWidget->RemoveFromParent();  // Updated from RemoveFromViewport to RemoveFromParent
         }
@@ -133,14 +157,15 @@ void AUhuPlayerControllerBase::MoveRight(const FInputActionValue& InputActionVal
     HandleMovement(InputActionValue, EAxis::Y, TEXT("MoveRight"));
 }
 
+// TODO: Drone can move up and down before first switch to drone and back
 void AUhuPlayerControllerBase::MoveUp(const FInputActionValue& InputActionValue)
 {
-    float Value = InputActionValue.Get<float>();
-    if (DroneCharacter.IsValid() && Value != 0.0f)
+    if (const float Value = InputActionValue.Get<float>(); DroneCharacter.IsValid() && Value != 0.0f)
     {
         // Add vertical movement based on Up/Down input
         const FVector UpDirection = FVector::UpVector;
         DroneCharacter->AddMovementInput(UpDirection, Value);
+
         UE_LOG(LogUhuController, Log, TEXT("MoveUp for %s"), *DroneCharacter->GetName());
     }
 }
@@ -171,8 +196,7 @@ void AUhuPlayerControllerBase::HandleMovement(const FInputActionValue& InputActi
     }
 
     // Execute the movement
-    const float Value = InputActionValue.Get<float>();
-    if (Value != 0.0f)
+    if (const float Value = InputActionValue.Get<float>(); Value != 0.0f)
     {
         // Calculate new movement and execute it
         const FVector Movement = Direction * Value;
@@ -200,32 +224,3 @@ void AUhuPlayerControllerBase::Jump()
         UE_LOG(LogUhuController, Warning, TEXT("PlayerCharacter is invalid, cannot jump."));
     }
 }
-
-void AUhuPlayerControllerBase::SwitchCharacter()
-{
-    APawn* NewCharacter = bIsControllingDrone ? PlayerCharacter.Get() : DroneCharacter.Get();
-    UUserWidget* NewWidget = bIsControllingDrone ? PlayerUIWidget : DroneUIWidget;
-    UUserWidget* OldWidget = bIsControllingDrone ? DroneUIWidget : PlayerUIWidget;
-    const FString CharacterName = bIsControllingDrone ? "Player" : "Drone";
-
-    SwitchToCharacter(NewCharacter, NewWidget, OldWidget, CharacterName);
-}
-
-
-void AUhuPlayerControllerBase::SwitchControl()
-{
-    // Wechsel zwischen Charakter und Drohne
-    bIsControllingDrone = !bIsControllingDrone;
-
-    if (bIsControllingDrone)
-    {
-        // Aktiviere die Drohne und deaktiviere den Charakter
-        SwitchToCharacter(DroneCharacter.Get(), DroneUIWidget, PlayerUIWidget, "Drone");
-    }
-    else
-    {
-        // Aktiviere den Charakter und deaktiviere die Drohne
-        SwitchToCharacter(PlayerCharacter.Get(), PlayerUIWidget, DroneUIWidget, "Player");
-    }
-}
-

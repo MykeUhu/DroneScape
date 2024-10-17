@@ -4,9 +4,7 @@
 
 AUhuCharacterBase::AUhuCharacterBase()
 {
-    // Set default movement settings
-    GetCharacterMovement()->bOrientRotationToMovement = true; // Character rotates towards movement direction
-    bUseControllerRotationYaw = false; // Disable controller rotation
+
 }
 
 void AUhuCharacterBase::BeginPlay()

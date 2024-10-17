@@ -6,21 +6,31 @@
 
 AUhuDrone::AUhuDrone()
 {
-	// Create and attach Camera component for drone view
-	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
-	Camera->SetupAttachment(RootComponent);
-	Camera->SetRelativeLocation(FVector(0, 0, 50)); // Position der Kamera direkt hinter der Drohne
-	Camera->bUsePawnControlRotation = false; 
+    
+    SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
+    SpringArm->SetupAttachment(RootComponent);
+
+    SpringArm->TargetArmLength = 500.0f; // Set to approximately 5 meters
+    SpringArm->bUsePawnControlRotation = false;
+    
+    // Create and attach Camera component for drone view
+    Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
+    Camera->SetupAttachment(SpringArm);
+    Camera->bUsePawnControlRotation = false;
+    
+    // Set default movement settings
+    GetCharacterMovement()->bOrientRotationToMovement = true; // Character rotates towards movement direction
+    bUseControllerRotationYaw = false; // Disable controller rotation
 }
 
 void AUhuDrone::BeginPlay()
 {
-	Super::BeginPlay();
-	// Initial setup if needed
+    Super::BeginPlay();
+    // Initial setup if needed
 }
 
 void AUhuDrone::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
-	Super::SetupPlayerInputComponent(PlayerInputComponent);
-	// Setup input bindings here (e.g., movement, camera control)
+    Super::SetupPlayerInputComponent(PlayerInputComponent);
+    // Setup input bindings here (e.g., movement, camera control)
 }

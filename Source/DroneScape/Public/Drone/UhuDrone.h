@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Character/UhuCharacterBase.h"
 #include "Camera/CameraComponent.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "UhuDrone.generated.h"
 
 UCLASS()
@@ -22,6 +23,9 @@ public:
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
 private:
+	UPROPERTY(VisibleAnywhere)
+	USpringArmComponent* SpringArm;
+	
 	UPROPERTY(VisibleAnywhere)
 	UCameraComponent* Camera;
 };

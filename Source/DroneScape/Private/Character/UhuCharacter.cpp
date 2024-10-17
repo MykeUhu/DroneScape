@@ -18,6 +18,10 @@ AUhuCharacter::AUhuCharacter()
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	Camera->SetupAttachment(SpringArm, USpringArmComponent::SocketName);
 	Camera->bUsePawnControlRotation = false; // Camera does not follow controller rotation
+
+	// Set default movement settings
+	GetCharacterMovement()->bOrientRotationToMovement = true; // Character rotates towards movement direction
+	bUseControllerRotationYaw = false; // Disable controller rotation
 }
 
 void AUhuCharacter::BeginPlay()
